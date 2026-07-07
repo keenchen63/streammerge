@@ -121,33 +121,50 @@ python -m stream_merge \
 
 ## 运行时控制
 
-程序启动后进入交互模式，支持以下热键：
+程序启动后进入交互模式。**调整采用"暂存 → 提交"模式**：所有方向键和切换操作会先暂存，按 `Enter` 后一次性生效（只重启一次 ffmpeg），按 `r` 可取消暂存。
 
 | 按键 | 功能 |
 |------|------|
-| `←` / `→` | 音频偏移 ±50ms（微调） |
-| `Shift+←` / `Shift+→` | 音频偏移 ±500ms（粗调） |
-| `[` / `]` | 音频偏移 ±500ms（等效粗调） |
-| `+` / `-` | 音频偏移 ±50ms（等效微调） |
-| `v` | 切换视频源（a ↔ b） |
-| `a` | 切换音频源（a ↔ b） |
+| `←` / `→` | 音频偏移暂存 ±50ms（微调） |
+| `Shift+←` / `Shift+→` | 音频偏移暂存 ±500ms（粗调） |
+| `[` / `]` | 音频偏移暂存 ±500ms（等效粗调） |
+| `+` / `-` | 音频偏移暂存 ±50ms（等效微调） |
+| `v` | 暂存视频源切换（a ↔ b） |
+| `a` | 暂存音频源切换（a ↔ b） |
+| `Enter` | **提交所有暂存调整**，一次性重启 ffmpeg |
+| `r` | 取消所有暂存调整 |
 | `s` | 显示当前状态（偏移值、运行时长、重启次数） |
 | `h` | 显示热键帮助 |
-| `q` / `Ctrl+C` / `Ctrl+D` | 退出 |
+| `q` | 退出（有待提交的调整时会提醒） |
 
-### 状态输出示例
-
-按下 `s` 键时：
+### 交互示例
 
 ```
-2026-07-07T12:00:00 [INFO   ] STATUS | offset=+1.5s | video=a | audio=b | ffmpeg=running | uptime=360s | restarts=0
+$ ./streammerge --stream-a ... --stream-b ... --video a --audio b
+
+Stream Merge starting
+  Video: a, Audio: b
+  ...
+Interactive mode active. Press 'h' for help, 'q' to quit.
+
+[按 → 键]
+[PENDING] offset → +50ms (Δ +50ms)  |  Enter=commit  r=cancel
+
+[按 → 键]
+[PENDING] offset → +100ms (Δ +100ms)  |  Enter=commit  r=cancel
+
+[按 Enter]
+>>> COMMITTED: offset 0ms → +100ms
+
+[按 s]
+STATUS | offset=+100ms | video=a | audio=b | ffmpeg=running | uptime=45s | restarts=1
 ```
 
-每 30 秒自动输出的健康日志：
+## 日志
 
-```
-2026-07-07T12:00:30 [INFO   ] [HEALTH] offset=+1.5s video=a audio=b ffmpeg=running uptime=390s restarts=0 segments=8
-```
+- **stdout**：仅显示用户层面的信息（启动配置、状态、调整预览）
+- **`streammerge.log`**：完整的程序运行日志（ffmpeg 生命周期、健康检查、错误等）
+- **`{output-dir}/ffmpeg.log`**：ffmpeg 的 stderr 输出
 
 ## 输出文件
 
@@ -160,6 +177,8 @@ output/
 ├── index1.ts
 ├── ...
 └── ffmpeg.log        # ffmpeg 运行日志
+
+streammerge.log       # 程序运行日志（工作目录下）
 ```
 
 ### 播放输出流
