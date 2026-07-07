@@ -95,6 +95,27 @@ def validate_args(args: argparse.Namespace) -> list[str]:
     return errors
 
 
+def _ensure_cooked_terminal():
+    """Restore terminal to cooked mode if it's in raw mode (e.g. after a crash).
+
+    The interactive controller uses tty.setraw() for single-key reads. If the
+    program exits without restoring the terminal (crash/SIGKILL), stdin stays
+    in raw mode and Python's input() misbehaves — Enter and Ctrl+C are read
+    as literal bytes instead of being handled by the terminal driver.
+    """
+    try:
+        import termios
+        fd = sys.stdin.fileno()
+        attrs = termios.tcgetattr(fd)
+        # Check if ICANON (canonical/cooked mode) is disabled — a sign of raw mode
+        if not (attrs[3] & termios.ICANON):
+            # Restore cooked mode: enable ICANON + ECHO
+            attrs[3] |= termios.ICANON | termios.ECHO
+            termios.tcsetattr(fd, termios.TCSADRAIN, attrs)
+    except (termios.error, OSError, ImportError):
+        pass  # Not a TTY or unsupported platform
+
+
 def _prompt(prompt_text: str, default: str = "", validator=None) -> str:
     """Prompt the user for input with a default value.
 
@@ -107,6 +128,8 @@ def _prompt(prompt_text: str, default: str = "", validator=None) -> str:
     Returns:
         The user's input or the default.
     """
+    _ensure_cooked_terminal()
+
     if default:
         display = f"{prompt_text} [{default}]: "
     else:

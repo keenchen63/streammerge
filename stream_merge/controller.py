@@ -112,10 +112,10 @@ class InteractiveController:
     def _dispatch(self, char: str) -> None:
         """Dispatch a single key press to the appropriate action."""
         actions: dict[str, Callable[[], None]] = {
-            "\x03": self._do_quit,   # Ctrl-C
-            "\x04": self._do_quit,   # Ctrl-D
-            "\r": self._commit,      # Enter
-            "\n": self._commit,      # Enter
+            "\x03": self._force_quit,   # Ctrl-C (always quits)
+            "\x04": self._force_quit,   # Ctrl-D (always quits)
+            "\r": self._commit,         # Enter
+            "\n": self._commit,         # Enter
             "q": self._do_quit,
             "Q": self._do_quit,
             "v": self._toggle_video,
@@ -268,12 +268,21 @@ class InteractiveController:
             f"| [ ] : ±{OFFSET_COARSE_MS}ms "
             f"| +/- : ±{OFFSET_FINE_MS}ms"
         )
-        print("          v: toggle video | a: toggle audio | s: status | Enter: commit | r: cancel | q: quit")
+        print("          v: toggle video | a: toggle audio | s: status")
+        print("          Enter: commit | r: cancel | q: quit | Ctrl+C: force quit")
 
     def _do_quit(self) -> None:
-        """Quit the interactive controller."""
+        """Quit if no pending changes; warn otherwise."""
         if self._has_pending():
-            print(">>> WARNING: You have uncommitted changes. Press Enter to commit or r to cancel, then q to quit.")
+            print(">>> You have uncommitted changes. Press Enter to commit, r to cancel, or Ctrl+C to force quit.")
             return
+        print("Shutting down...")
+        self.shutdown()
+
+    def _force_quit(self) -> None:
+        """Force quit — discard pending changes and exit immediately."""
+        if self._has_pending():
+            print(">>> Discarding pending changes...")
+            self._clear_pending()
         print("Shutting down...")
         self.shutdown()
