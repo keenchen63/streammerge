@@ -1,9 +1,8 @@
 """CLI argument parsing and entry point for stream_merge."""
 
 import argparse
-import re
-import sys
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -79,20 +78,90 @@ def validate_args(args: argparse.Namespace) -> list[str]:
 
 def main() -> int:
     """Entry point. Returns exit code (0 = success)."""
+    import logging
+    import signal
+    import sys
+    import threading
+
+    from stream_merge.offset import parse_offset
+    from stream_merge.stream_manager import StreamManager
+    from stream_merge.controller import InteractiveController
+    from stream_merge.server import HLSServer
+    from stream_merge.monitor import StatusMonitor
+
+    # ── logging setup ───────────────────────────────────────
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)-7s] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+        stream=sys.stdout,
+    )
+
+    # ── parse & validate ────────────────────────────────────
     args = parse_args()
 
     errors = validate_args(args)
     if errors:
         for err in errors:
-            logger.error(err)
+            logging.error(err)
         return 1
 
-    # Deferred import to avoid circular imports; the actual run logic
-    # is wired in a later task.
-    logger.info("Stream Merge starting with: video=%s, audio=%s, offset=%s",
-                args.video, args.audio, args.offset)
-    logger.info("Stream A: %s", args.stream_a)
-    logger.info("Stream B: %s", args.stream_b)
-    logger.info("Output: %s", args.output_dir)
+    offset_ms = parse_offset(args.offset)
+
+    # ── start components ────────────────────────────────────
+    manager = StreamManager(
+        stream_a=args.stream_a,
+        stream_b=args.stream_b,
+        video=args.video,
+        audio=args.audio,
+        offset_ms=offset_ms,
+        output_dir=args.output_dir,
+        low_latency=args.low_latency == "true",
+    )
+
+    server = HLSServer(output_dir=args.output_dir, port=args.port)
+
+    monitor = StatusMonitor(manager=manager, output_dir=args.output_dir)
+
+    controller = InteractiveController(manager=manager)
+
+    # ── signal handling for graceful shutdown ───────────────
+    shutdown_event = threading.Event()
+
+    def _handle_signal(signum, frame):
+        logging.info("Received signal %s, shutting down...", signum)
+        shutdown_event.set()
+        controller.shutdown()
+
+    signal.signal(signal.SIGINT, _handle_signal)
+    signal.signal(signal.SIGTERM, _handle_signal)
+
+    # ── launch ──────────────────────────────────────────────
+    logging.info("=" * 50)
+    logging.info("Stream Merge starting")
+    logging.info("  Stream A: %s", args.stream_a)
+    logging.info("  Stream B: %s", args.stream_b)
+    logging.info("  Video: %s, Audio: %s", args.video, args.audio)
+    logging.info("  Offset: %s (%dms)", args.offset, offset_ms)
+    logging.info("  Output: %s", args.output_dir)
+    logging.info("  LL-HLS: %s", args.low_latency)
+    logging.info("  HTTP port: %s", args.port if args.port else "disabled")
+    logging.info("=" * 50)
+
+    # Ensure clean shutdown on any unhandled exception in the main thread
+    try:
+        server.start()
+        manager.start()
+        monitor.start()
+        controller.run()
+    except Exception:
+        logging.exception("Fatal error in main loop")
+    finally:
+        logging.info("Shutting down components...")
+        monitor.stop()
+        controller.shutdown()
+        manager.stop()
+        server.stop()
+        logging.info("Stream Merge exited.")
 
     return 0
