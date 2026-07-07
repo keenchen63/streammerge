@@ -67,11 +67,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--proxy-a", default="",
-        help="HTTP proxy for stream A (e.g. http://host:port), empty for direct",
+        help="HTTP proxy for stream A (http://host:port only, NOT socks5), empty for direct",
     )
     parser.add_argument(
         "--proxy-b", default="",
-        help="HTTP proxy for stream B (e.g. http://host:port), empty for direct",
+        help="HTTP proxy for stream B (http://host:port only, NOT socks5), empty for direct",
     )
     parser.add_argument(
         "--reencode", action="store_true",
@@ -255,12 +255,12 @@ def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
 
     # ── optional: proxy A ──────────────────────────────────────
     args.proxy_a = _prompt(
-        "HTTP proxy for Stream A (empty = direct, e.g. http://proxy:8080)",
+        "HTTP proxy for Stream A (http://host:port only, empty = direct)",
         default=args.proxy_a or "",
     )
     # ── optional: proxy B ──────────────────────────────────────
     args.proxy_b = _prompt(
-        "HTTP proxy for Stream B (empty = direct, e.g. http://proxy:8080)",
+        "HTTP proxy for Stream B (http://host:port only, empty = direct)",
         default=args.proxy_b or "",
     )
 

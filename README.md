@@ -33,7 +33,7 @@ Stream B URL (HLS .m3u8) []: https://live-b.example.com/index.m3u8
 Video source [a]:
 Audio source [a]: b
 HTTP proxy for Stream A (empty = direct) []:
-HTTP proxy for Stream B (empty = direct) []: socks5://127.0.0.1:1080
+HTTP proxy for Stream B (empty = direct) []: http://proxy:8080
 Audio offset (e.g. 500ms, -200ms, +1.5s) [0ms]:
 Output directory [/tmp/streammerge]:
 HTTP server port (0 = disabled) [38080]:
@@ -64,8 +64,8 @@ HLS lax mode for Stream B (CDN clean URLs) [false]: true
 | `--offset` | 字符串 | `0ms` | 音频相对视频的时间偏移 |
 | `--output-dir` | 路径 | `./output` | HLS 输出目录 |
 | `--port` | 整数 | `0` | HTTP 服务端口，`0` 表示禁用 |
-| `--proxy-a` | URL | (空) | Stream A 的代理地址（支持 `http://` 和 `socks5://`），空则直连 |
-| `--proxy-b` | URL | (空) | Stream B 的代理地址（支持 `http://` 和 `socks5://`），空则直连 |
+| `--proxy-a` | URL | (空) | Stream A 的 HTTP 代理地址（如 `http://host:port`），空则直连。**仅支持 HTTP 代理，不支持 SOCKS5** |
+| `--proxy-b` | URL | (空) | Stream B 的 HTTP 代理地址（如 `http://host:port`），空则直连。**仅支持 HTTP 代理，不支持 SOCKS5** |
 | `--hls-lax-a` | 标志 | 关闭 | Stream A 使用宽松 HLS 模式（CDN 分片 URL 不带 `.ts` 扩展名时启用） |
 | `--hls-lax-b` | 标志 | 关闭 | Stream B 使用宽松 HLS 模式（CDN 分片 URL 不带 `.ts` 扩展名时启用） |
 | `--reencode` | 标志 | 关闭 | 强制重编码为 H.264+AAC（源为 HEVC 等非标准编码时使用） |
@@ -129,26 +129,26 @@ HLS lax mode for Stream B (CDN clean URLs) [false]: true
 
 ### 场景 3：指定代理
 
-支持按流独立设置代理，混合使用：
+支持按流独立设置 HTTP 代理：
 
 ```bash
-# A 直连，B 走 SOCKS5（A 流量大不占代理带宽）
+# A 直连，B 走代理
 ./streammerge \
   --stream-a "http://domestic-source.example.com/live" \
   --stream-b "https://overseas-cdn.example.com/live.m3u8" \
-  --proxy-b "socks5://127.0.0.1:1080" \
+  --proxy-b "http://proxy:8080" \
   --video a --audio b
 
 # 两个都走代理
 ./streammerge \
   --stream-a "https://source-a.example.com/live.m3u8" \
   --stream-b "https://source-b.example.com/live.m3u8" \
-  --proxy-a "socks5://127.0.0.1:1080" \
-  --proxy-b "socks5://127.0.0.1:1080" \
+  --proxy-a "http://proxy:8080" \
+  --proxy-b "http://proxy:8080" \
   --video a --audio b
 ```
 
-> **性能提示**：如果某个源直连可达（如 `http://`），就不要给它设代理。两个流共用同一个 SOCKS5 代理时带宽会互相争抢。
+> **注意**：仅支持 HTTP 代理（`http://`），不支持 SOCKS5。经过验证，ffmpeg 的 `-http_proxy` 在 `socks5://` 格式下不生效，流量会绕过代理直连。
 
 代理是**按输入流独立设置**的 —— ffmpeg 在 `-i` 前插入 `-http_proxy`，A 走代理 B 不走，互不影响。
 
