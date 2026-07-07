@@ -32,12 +32,15 @@ Stream A URL (HLS .m3u8) []: https://live-a.example.com/index.m3u8
 Stream B URL (HLS .m3u8) []: https://live-b.example.com/index.m3u8
 Video source [a]:
 Audio source [a]: b
-HTTP proxy for Stream A (empty = direct) []: http://proxy:8080
-HTTP proxy for Stream B (empty = direct) []:
+HTTP proxy for Stream A (empty = direct) []:
+HTTP proxy for Stream B (empty = direct) []: socks5://127.0.0.1:1080
 Audio offset (e.g. 500ms, -200ms, +1.5s) [0ms]:
-Output directory [./output]:
-HTTP server port (0 = disabled) [0]:
+Output directory [/tmp/streammerge]:
+HTTP server port (0 = disabled) [38080]:
 Low-latency HLS mode [true]:
+Force re-encode [false]:
+HLS lax mode for Stream A (CDN clean URLs) [false]:
+HLS lax mode for Stream B (CDN clean URLs) [false]: true
 ```
 
 也支持**混合模式**：命令行参数 + `-i`，已传入的参数会作为交互提示的默认值。
@@ -63,9 +66,18 @@ Low-latency HLS mode [true]:
 | `--port` | 整数 | `0` | HTTP 服务端口，`0` 表示禁用 |
 | `--proxy-a` | URL | (空) | Stream A 的代理地址（支持 `http://` 和 `socks5://`），空则直连 |
 | `--proxy-b` | URL | (空) | Stream B 的代理地址（支持 `http://` 和 `socks5://`），空则直连 |
+| `--hls-lax-a` | 标志 | 关闭 | Stream A 使用宽松 HLS 模式（CDN 分片 URL 不带 `.ts` 扩展名时启用） |
+| `--hls-lax-b` | 标志 | 关闭 | Stream B 使用宽松 HLS 模式（CDN 分片 URL 不带 `.ts` 扩展名时启用） |
+| `--reencode` | 标志 | 关闭 | 强制重编码为 H.264+AAC（源为 HEVC 等非标准编码时使用） |
 | `--low-latency` | `true`/`false` | `true` | 启用低延迟 HLS 模式 |
 
 > *`--stream-a` 和 `--stream-b` 为必填项，但可通过 `-i` 交互式输入，无需在命令行指定。
+
+### --hls-lax 什么时候需要？
+
+当输入流是 HLS 且 CDN 分片 URL 不带 `.ts` 扩展名时（如 `/api/gdty/107746`），ffmpeg 默认拒绝。`--hls-lax` 强制 HLS demuxer 并关闭扩展名校验。
+
+**如何判断？** 如果日志中出现 `not in allowed_segment_extensions` 错误，就需要加这个参数。Raw TS 流（非 HLS）不需要。
 
 ### offset 格式
 
@@ -117,27 +129,44 @@ Low-latency HLS mode [true]:
 
 ### 场景 3：指定代理
 
-Stream A 走代理，Stream B 直连（支持 HTTP 和 SOCKS5）：
+支持按流独立设置代理，混合使用：
 
 ```bash
-# HTTP 代理
+# A 直连，B 走 SOCKS5（A 流量大不占代理带宽）
 ./streammerge \
-  --stream-a "https://overseas-cdn.example.com/live.m3u8" \
-  --stream-b "https://domestic.example.com/live.m3u8" \
-  --proxy-a "http://proxy:8080" \
+  --stream-a "http://domestic-source.example.com/live" \
+  --stream-b "https://overseas-cdn.example.com/live.m3u8" \
+  --proxy-b "socks5://127.0.0.1:1080" \
   --video a --audio b
 
-# SOCKS5 代理
+# 两个都走代理
 ./streammerge \
-  --stream-a "https://overseas-cdn.example.com/live.m3u8" \
-  --stream-b "https://domestic.example.com/live.m3u8" \
+  --stream-a "https://source-a.example.com/live.m3u8" \
+  --stream-b "https://source-b.example.com/live.m3u8" \
   --proxy-a "socks5://127.0.0.1:1080" \
+  --proxy-b "socks5://127.0.0.1:1080" \
   --video a --audio b
 ```
 
+> **性能提示**：如果某个源直连可达（如 `http://`），就不要给它设代理。两个流共用同一个 SOCKS5 代理时带宽会互相争抢。
+
 代理是**按输入流独立设置**的 —— ffmpeg 在 `-i` 前插入 `-http_proxy`，A 走代理 B 不走，互不影响。
 
-### 场景 4：局域网拉流服务
+### 场景 4：CDN 分片 URL 异常
+
+某些 CDN 的 HLS 分片 URL 不带 `.ts` 扩展名（如 `/api/gdty/107746`），需要 `--hls-lax`：
+
+```bash
+./streammerge \
+  --stream-a "http://raw-ts-source.example.com/live" \
+  --stream-b "https://cdn-source.example.com/live" \
+  --video a --audio b \
+  --hls-lax-b
+```
+
+> **判断方法**：如果日志出现 `not in allowed_segment_extensions` 就加这个参数。Raw TS 流不需要。
+
+### 场景 5：局域网拉流服务
 
 输出合并流并启动 HTTP 服务器，局域网内其他设备可直接拉流：
 
@@ -153,7 +182,7 @@ Stream A 走代理，Stream B 直连（支持 HTTP 和 SOCKS5）：
 
 其他设备访问 `http://<你的IP>:8080/index.m3u8` 即可播放。
 
-### 场景 5：标准延迟模式
+### 场景 6：标准延迟模式
 
 需要更大的缓冲提高稳定性时，关闭低延迟模式：
 
