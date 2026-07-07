@@ -321,6 +321,24 @@ def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
         default=hls_lax_b_default,
         validator=_validate_choice(["true", "false"]),
     ) == "true"
+    # ── optional: queue size ───────────────────────────────────
+    def _validate_queue(value: str) -> str | None:
+        if not value:
+            return None
+        try:
+            v = int(value)
+            if v < 1024 or v > 65536:
+                return "Queue size must be 1024-65536"
+        except ValueError:
+            return f"Must be a number, got: {value}"
+        return None
+
+    queue_default = str(args.queue_size or 16384)
+    args.queue_size = int(_prompt(
+        "Input thread queue size (1024-65536, larger = more buffer)",
+        default=queue_default,
+        validator=_validate_queue,
+    ))
 
     print()
     print("─" * 40)
