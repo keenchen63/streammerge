@@ -1,4 +1,5 @@
 """StreamManager — manages ffmpeg subprocess lifecycle."""
+from __future__ import annotations
 
 import logging
 import os

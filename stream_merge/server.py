@@ -1,4 +1,5 @@
 """HLSServer — lightweight HTTP server for HLS output directory."""
+from __future__ import annotations
 
 import logging
 import threading

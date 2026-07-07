@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Output
+output/
+public/
+
+# Logs
+*.log
+streammerge.log
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

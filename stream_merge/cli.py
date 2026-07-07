@@ -1,4 +1,5 @@
 """CLI argument parsing and entry point for stream_merge."""
+from __future__ import annotations
 
 import argparse
 import logging

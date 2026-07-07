@@ -1,4 +1,5 @@
 """Offset parsing and formatting utilities.
+from __future__ import annotations
 
 Offsets represent time in milliseconds (int), with string representations
 like "500ms", "-200ms", "+1.5s".

@@ -1,4 +1,5 @@
 """Build ffmpeg command for stream merging."""
+from __future__ import annotations
 
 import os
 
