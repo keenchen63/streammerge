@@ -56,13 +56,31 @@ class TestParseArgs:
                 "--audio", "c",
             ])
 
-    def test_missing_stream_a_raises_error(self):
-        with pytest.raises(SystemExit):
-            parse_args(["--stream-b", "https://b.example.com/live.m3u8"])
+    def test_interactive_flag(self):
+        args = parse_args(["--interactive"])
+        assert args.interactive is True
+        assert args.stream_a is None
+        assert args.stream_b is None
 
-    def test_missing_stream_b_raises_error(self):
-        with pytest.raises(SystemExit):
-            parse_args(["--stream-a", "https://a.example.com/live.m3u8"])
+    def test_missing_stream_a_caught_by_validate(self):
+        args = argparse.Namespace(
+            stream_a=None,
+            stream_b="https://b.example.com/live.m3u8",
+            video="a", audio="a", offset="0ms",
+            output_dir="./output", port=0, low_latency="true",
+        )
+        errors = validate_args(args)
+        assert any("stream-a" in e for e in errors)
+
+    def test_missing_stream_b_caught_by_validate(self):
+        args = argparse.Namespace(
+            stream_a="https://a.example.com/live.m3u8",
+            stream_b=None,
+            video="a", audio="a", offset="0ms",
+            output_dir="./output", port=0, low_latency="true",
+        )
+        errors = validate_args(args)
+        assert any("stream-b" in e for e in errors)
 
 
 class TestValidateArgs:

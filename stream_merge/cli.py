@@ -3,10 +3,21 @@
 import argparse
 import logging
 import re
+import sys
 
 logger = logging.getLogger(__name__)
 
 OFFSET_PATTERN = re.compile(r'^[+-]?\d+(\.\d+)?(ms|s)$')
+
+# Defaults used by both argparse and interactive prompt
+DEFAULTS = {
+    "video": "a",
+    "audio": "a",
+    "offset": "0ms",
+    "output_dir": "./output",
+    "port": 0,
+    "low_latency": "true",
+}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -16,35 +27,39 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Merge video and audio tracks from two HLS live streams.",
     )
     parser.add_argument(
-        "--stream-a", required=True,
+        "-i", "--interactive", action="store_true",
+        help="Enter interactive prompt mode to input parameters step by step",
+    )
+    parser.add_argument(
+        "--stream-a",
         help="First HLS input stream URL (.m3u8)",
     )
     parser.add_argument(
-        "--stream-b", required=True,
+        "--stream-b",
         help="Second HLS input stream URL (.m3u8)",
     )
     parser.add_argument(
-        "--video", choices=["a", "b"], default="a",
+        "--video", choices=["a", "b"], default=DEFAULTS["video"],
         help="Video source: a or b (default: a)",
     )
     parser.add_argument(
-        "--audio", choices=["a", "b"], default="a",
+        "--audio", choices=["a", "b"], default=DEFAULTS["audio"],
         help="Audio source: a or b (default: a)",
     )
     parser.add_argument(
-        "--offset", default="0ms",
+        "--offset", default=DEFAULTS["offset"],
         help="Audio offset relative to video, e.g. -200ms, +1.5s (default: 0ms)",
     )
     parser.add_argument(
-        "--output-dir", default="./output",
+        "--output-dir", default=DEFAULTS["output_dir"],
         help="Directory for HLS output files (default: ./output)",
     )
     parser.add_argument(
-        "--port", type=int, default=0,
+        "--port", type=int, default=DEFAULTS["port"],
         help="HTTP server port, 0 to disable (default: 0)",
     )
     parser.add_argument(
-        "--low-latency", type=str, default="true",
+        "--low-latency", type=str, default=DEFAULTS["low_latency"],
         choices=["true", "false"],
         help="Enable LL-HLS mode (default: true)",
     )
@@ -61,9 +76,13 @@ def validate_args(args: argparse.Namespace) -> list[str]:
             "Expected format: [+-]<n>ms or [+-]<n>s (e.g. 500ms, -200ms, +1.5s)"
         )
 
-    if not args.stream_a.startswith(("http://", "https://")):
+    if not args.stream_a:
+        errors.append("--stream-a is required")
+    elif not args.stream_a.startswith(("http://", "https://")):
         errors.append(f"stream-a must be an HTTP(S) URL, got: {args.stream_a}")
-    if not args.stream_b.startswith(("http://", "https://")):
+    if not args.stream_b:
+        errors.append("--stream-b is required")
+    elif not args.stream_b.startswith(("http://", "https://")):
         errors.append(f"stream-b must be an HTTP(S) URL, got: {args.stream_b}")
 
     if args.video == args.audio:
@@ -74,6 +93,154 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         )
 
     return errors
+
+
+def _prompt(prompt_text: str, default: str = "", validator=None) -> str:
+    """Prompt the user for input with a default value.
+
+    Args:
+        prompt_text: The question to display.
+        default: Default value if user presses Enter.
+        validator: Optional callable(str) -> str | None. Returns error message
+                   if invalid, or None if valid.
+
+    Returns:
+        The user's input or the default.
+    """
+    if default:
+        display = f"{prompt_text} [{default}]: "
+    else:
+        display = f"{prompt_text}: "
+
+    while True:
+        try:
+            value = input(display).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            sys.exit(0)
+
+        if not value:
+            value = default
+
+        if validator:
+            err = validator(value)
+            if err:
+                print(f"  ✗ {err}", file=sys.stderr)
+                continue
+
+        return value
+
+
+def _validate_url(value: str) -> str | None:
+    """Validator: must be an HTTP(S) URL."""
+    if not value:
+        return "URL is required"
+    if not value.startswith(("http://", "https://")):
+        return f"Must be an HTTP(S) URL, got: {value}"
+    return None
+
+
+def _validate_offset(value: str) -> str | None:
+    """Validator: must match offset format."""
+    if not OFFSET_PATTERN.match(value):
+        return f"Invalid format: '{value}'. Expected e.g. 500ms, -200ms, +1.5s"
+    return None
+
+
+def _validate_port(value: str) -> str | None:
+    """Validator: must be an integer 0-65535."""
+    if not value:
+        return None  # empty → use default
+    try:
+        port = int(value)
+        if port < 0 or port > 65535:
+            return f"Port must be 0-65535, got: {port}"
+    except ValueError:
+        return f"Must be a number, got: {value}"
+    return None
+
+
+def _validate_choice(choices: list[str]) -> callable:
+    """Factory: return a validator for a fixed set of choices."""
+    def validator(value: str) -> str | None:
+        if value not in choices:
+            return f"Must be one of: {', '.join(choices)}"
+        return None
+    return validator
+
+
+def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
+    """Prompt the user interactively for each parameter.
+
+    Pre-fills with values already set from CLI args (if any). Returns the
+    updated namespace.
+    """
+    print()
+    print("╔══════════════════════════════════════╗")
+    print("║   Stream Merge — Interactive Setup   ║")
+    print("╚══════════════════════════════════════╝")
+    print("(Press Enter to accept the default, Ctrl+C to quit)")
+    print()
+
+    # ── required: stream-a ────────────────────────────────────
+    default_a = args.stream_a or ""
+    args.stream_a = _prompt(
+        "Stream A URL (HLS .m3u8)",
+        default=default_a,
+        validator=_validate_url,
+    )
+
+    # ── required: stream-b ────────────────────────────────────
+    default_b = args.stream_b or ""
+    args.stream_b = _prompt(
+        "Stream B URL (HLS .m3u8)",
+        default=default_b,
+        validator=_validate_url,
+    )
+
+    # ── optional: video source ────────────────────────────────
+    args.video = _prompt(
+        "Video source",
+        default=args.video,
+        validator=_validate_choice(["a", "b"]),
+    )
+    # ── optional: audio source ────────────────────────────────
+    args.audio = _prompt(
+        "Audio source",
+        default=args.audio,
+        validator=_validate_choice(["a", "b"]),
+    )
+
+    # ── optional: offset ──────────────────────────────────────
+    args.offset = _prompt(
+        "Audio offset (e.g. 500ms, -200ms, +1.5s)",
+        default=args.offset,
+        validator=_validate_offset,
+    )
+
+    # ── optional: output dir ──────────────────────────────────
+    args.output_dir = _prompt(
+        "Output directory",
+        default=args.output_dir,
+    )
+    # ── optional: port ────────────────────────────────────────
+    args.port = int(_prompt(
+        "HTTP server port (0 = disabled)",
+        default=str(args.port),
+        validator=_validate_port,
+    ))
+    # ── optional: low-latency ─────────────────────────────────
+    args.low_latency = _prompt(
+        "Low-latency HLS mode",
+        default=args.low_latency,
+        validator=_validate_choice(["true", "false"]),
+    )
+
+    print()
+    print("─" * 40)
+    print("Configuration complete. Starting...")
+    print()
+    return args
 
 
 def main() -> int:
@@ -101,6 +268,19 @@ def main() -> int:
 
     # ── parse & validate ────────────────────────────────────
     args = parse_args()
+
+    # Interactive mode: prompt for missing parameters
+    if args.interactive:
+        args = interactive_prompt(args)
+
+    # After interactive mode (or direct CLI), verify required fields
+    if not args.stream_a or not args.stream_b:
+        print(
+            "Error: --stream-a and --stream-b are required. "
+            "Use --interactive for guided setup.",
+            file=sys.stderr,
+        )
+        return 1
 
     errors = validate_args(args)
     if errors:

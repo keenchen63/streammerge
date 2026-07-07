@@ -5,14 +5,10 @@
 ## 快速开始
 
 ```bash
-# 基本用法：用流A的视频 + 流B的音频
-python -m stream_merge \
-  --stream-a "https://live-a.example.com/index.m3u8" \
-  --stream-b "https://live-b.example.com/index.m3u8" \
-  --video a \
-  --audio b
+# 交互式启动（推荐）：逐项输入参数
+./streammerge --interactive
 
-# 或使用便捷脚本
+# 或直接通过命令行参数启动
 ./streammerge \
   --stream-a "https://live-a.example.com/index.m3u8" \
   --stream-b "https://live-b.example.com/index.m3u8" \
@@ -21,6 +17,28 @@ python -m stream_merge \
 ```
 
 输出文件默认写到 `./output/` 目录，包含 `index.m3u8` 播放列表和 TS 分片。
+
+### 交互式启动
+
+使用 `-i` / `--interactive` 启动时，程序会逐项询问每个参数，显示默认值，直接按 Enter 即可接受：
+
+```
+╔══════════════════════════════════════╗
+║   Stream Merge — Interactive Setup   ║
+╚══════════════════════════════════════╝
+(Press Enter to accept the default, Ctrl+C to quit)
+
+Stream A URL (HLS .m3u8) []: https://live-a.example.com/index.m3u8
+Stream B URL (HLS .m3u8) []: https://live-b.example.com/index.m3u8
+Video source [a]:
+Audio source [a]: b
+Audio offset (e.g. 500ms, -200ms, +1.5s) [0ms]:
+Output directory [./output]:
+HTTP server port (0 = disabled) [0]:
+Low-latency HLS mode [true]:
+```
+
+也支持**混合模式**：命令行参数 + `-i`，已传入的参数会作为交互提示的默认值。
 
 ## 环境要求
 
@@ -33,14 +51,17 @@ python -m stream_merge \
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `--stream-a` | URL | **必填** | 第一条 HLS 输入流地址（`.m3u8`） |
-| `--stream-b` | URL | **必填** | 第二条 HLS 输入流地址（`.m3u8`） |
+| `-i` / `--interactive` | 标志 | - | 进入交互式提示模式，逐项输入参数 |
+| `--stream-a` | URL | 必填* | 第一条 HLS 输入流地址（`.m3u8`） |
+| `--stream-b` | URL | 必填* | 第二条 HLS 输入流地址（`.m3u8`） |
 | `--video` | `a` 或 `b` | `a` | 视频轨来源 |
 | `--audio` | `a` 或 `b` | `a` | 音频轨来源 |
 | `--offset` | 字符串 | `0ms` | 音频相对视频的时间偏移 |
 | `--output-dir` | 路径 | `./output` | HLS 输出目录 |
 | `--port` | 整数 | `0` | HTTP 服务端口，`0` 表示禁用 |
 | `--low-latency` | `true`/`false` | `true` | 启用低延迟 HLS 模式 |
+
+> *`--stream-a` 和 `--stream-b` 为必填项，但可通过 `-i` 交互式输入，无需在命令行指定。
 
 ### offset 格式
 
