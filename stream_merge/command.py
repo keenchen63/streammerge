@@ -12,6 +12,8 @@ def build_ffmpeg_command(
     offset_ms: int,
     output_dir: str,
     low_latency: bool,
+    proxy_a: str = "",
+    proxy_b: str = "",
 ) -> list[str]:
     """Build the ffmpeg command as a list of arguments.
 
@@ -24,6 +26,8 @@ def build_ffmpeg_command(
                    negative = advance audio via itsoffset on video).
         output_dir: Directory for HLS output files.
         low_latency: Whether to use LL-HLS settings.
+        proxy_a: HTTP proxy for stream A (e.g. http://host:port), empty for none.
+        proxy_b: HTTP proxy for stream B (e.g. http://host:port), empty for none.
 
     Returns:
         List of command arguments suitable for subprocess.Popen.
@@ -43,17 +47,21 @@ def build_ffmpeg_command(
         "-reconnect_delay_max", "5",
         # Reinit filter for codec changes (input option, goes before -i)
         "-reinit_filter", "1",
-        # Stream A (input 0)
-        "-i", stream_a,
     ]
 
+    # Stream A — with optional per-input proxy
+    if proxy_a:
+        cmd.extend(["-http_proxy", proxy_a])
+    cmd.extend(["-i", stream_a])
+
     # Insert itsoffset before the second input if offset is negative
-    # (we delay the video by abs(offset) to effectively advance audio)
     if offset_ms < 0:
         itsoffset_sec = abs(offset_ms) / 1000.0
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
 
-    # Stream B (input 1)
+    # Stream B — with optional per-input proxy
+    if proxy_b:
+        cmd.extend(["-http_proxy", proxy_b])
     cmd.extend(["-i", stream_b])
 
     # Map video track

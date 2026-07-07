@@ -65,6 +65,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["true", "false"],
         help="Enable LL-HLS mode (default: true)",
     )
+    parser.add_argument(
+        "--proxy-a", default="",
+        help="HTTP proxy for stream A (e.g. http://host:port), empty for direct",
+    )
+    parser.add_argument(
+        "--proxy-b", default="",
+        help="HTTP proxy for stream B (e.g. http://host:port), empty for direct",
+    )
     return parser.parse_args(argv)
 
 
@@ -239,6 +247,17 @@ def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
         validator=_validate_url,
     )
 
+    # ── optional: proxy A ──────────────────────────────────────
+    args.proxy_a = _prompt(
+        "HTTP proxy for Stream A (empty = direct, e.g. http://proxy:8080)",
+        default=args.proxy_a or "",
+    )
+    # ── optional: proxy B ──────────────────────────────────────
+    args.proxy_b = _prompt(
+        "HTTP proxy for Stream B (empty = direct, e.g. http://proxy:8080)",
+        default=args.proxy_b or "",
+    )
+
     # ── optional: video source ────────────────────────────────
     args.video = _prompt(
         "Video source",
@@ -340,6 +359,8 @@ def main() -> int:
         offset_ms=offset_ms,
         output_dir=args.output_dir,
         low_latency=args.low_latency == "true",
+        proxy_a=args.proxy_a or "",
+        proxy_b=args.proxy_b or "",
     )
 
     server = HLSServer(output_dir=args.output_dir, port=args.port)
@@ -368,6 +389,8 @@ def main() -> int:
     print(f"  Video: {args.video}, Audio: {args.audio}")
     print(f"  Offset: {args.offset} ({offset_ms}ms)")
     print(f"  Output: {args.output_dir}")
+    print(f"  Proxy A: {args.proxy_a or 'direct'}")
+    print(f"  Proxy B: {args.proxy_b or 'direct'}")
     print(f"  LL-HLS: {args.low_latency}")
     print(f"  HTTP port: {args.port if args.port else 'disabled'}")
     print("  Log file: streammerge.log")
