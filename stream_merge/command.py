@@ -40,6 +40,8 @@ def build_ffmpeg_command(
         "-reconnect", "1",
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "5",
+        # Reinit filter for codec changes (input option, goes before -i)
+        "-reinit_filter", "1",
         # Stream A (input 0)
         "-i", stream_a,
     ]
@@ -89,9 +91,6 @@ def build_ffmpeg_command(
             "-hls_list_size", "10",
             "-hls_flags", "delete_segments+program_date_time",
         ])
-
-    # Reinit filter for codec changes
-    cmd.extend(["-reinit_filter", "1"])
 
     cmd.append(output_path)
 
