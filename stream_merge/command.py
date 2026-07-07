@@ -19,6 +19,8 @@ def build_ffmpeg_command(
     hls_lax_b: bool = False,
     queue_size: int = 16384,
     dual_audio: bool = False,
+    user_agent: str = "",
+    referer: str = "",
 ) -> list[str]:
     """Build the ffmpeg command as a list of arguments.
 
@@ -82,6 +84,12 @@ def build_ffmpeg_command(
         itsoffset_target = video       # delay the video source
 
     itsoffset_sec = abs(offset_ms) / 1000.0 if offset_ms != 0 else 0
+
+    # ── HTTP headers (global, applies to all HTTP inputs) ──────
+    if user_agent:
+        cmd.extend(["-user_agent", user_agent])
+    if referer:
+        cmd.extend(["-headers", f"Referer: {referer}"])
 
     # ── input A ───────────────────────────────────────────────
     if proxy_a:

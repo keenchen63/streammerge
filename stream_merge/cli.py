@@ -93,6 +93,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dual-audio", action="store_true",
         help="Keep audio from both streams as separate tracks (player-switchable)",
     )
+    parser.add_argument(
+        "--user-agent", default="",
+        help="Custom User-Agent header for HTTP requests",
+    )
+    parser.add_argument(
+        "--referer", default="",
+        help="Custom Referer header for HTTP requests",
+    )
     return parser.parse_args(argv)
 
 
@@ -350,6 +358,15 @@ def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
         default=dual_default,
         validator=_validate_choice(["true", "false"]),
     ) == "true"
+    # ── optional: HTTP headers ─────────────────────────────────
+    args.user_agent = _prompt(
+        "Custom User-Agent (empty = ffmpeg default)",
+        default=args.user_agent or "",
+    )
+    args.referer = _prompt(
+        "Custom Referer (empty = none, e.g. https://example.com/)",
+        default=args.referer or "",
+    )
 
     print()
     print("─" * 40)
@@ -421,6 +438,8 @@ def main() -> int:
         hls_lax_b=args.hls_lax_b,
         queue_size=args.queue_size,
         dual_audio=args.dual_audio,
+        user_agent=args.user_agent or "",
+        referer=args.referer or "",
     )
 
     server = HLSServer(output_dir=args.output_dir, port=args.port)
