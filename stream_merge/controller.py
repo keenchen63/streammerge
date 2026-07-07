@@ -36,9 +36,14 @@ class InteractiveController:
         self._pending_audio: str | None = None
 
     def run(self) -> None:
-        """Start the interactive keyboard loop. Blocks until shutdown() is called
-        or 'q' is pressed."""
+        """Start the interactive keyboard loop. Falls back to headless mode
+        if stdin is not a TTY (e.g. nohup, pipe, /dev/null)."""
         self._running = True
+
+        if not sys.stdin.isatty():
+            self._run_headless()
+            return
+
         self._setup_terminal()
 
         print("Interactive mode active. Press 'h' for help, 'q' to quit.")
@@ -56,6 +61,13 @@ class InteractiveController:
                 time.sleep(0.01)
         finally:
             self._restore_terminal()
+
+    def _run_headless(self) -> None:
+        """Run without interactive controls — just block until shutdown signal."""
+        print("[headless mode] stdin is not a terminal — interactive controls disabled")
+        print("Use Ctrl+C or kill to stop.")
+        while self._running:
+            time.sleep(1)
 
     def shutdown(self) -> None:
         """Signal the controller to exit its run loop."""
