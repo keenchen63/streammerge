@@ -95,25 +95,41 @@ def validate_args(args: argparse.Namespace) -> list[str]:
     return errors
 
 
-def _ensure_cooked_terminal():
-    """Restore terminal to cooked mode if it's in raw mode (e.g. after a crash).
+# Saved at import time — the terminal's normal cooked-mode settings.
+# Used by _ensure_cooked_terminal() to recover from raw mode.
+_COOKED_TERMIOS = None
+try:
+    import termios
+    _COOKED_TERMIOS = termios.tcgetattr(sys.stdin.fileno())
+except Exception:
+    pass
 
-    The interactive controller uses tty.setraw() for single-key reads. If the
-    program exits without restoring the terminal (crash/SIGKILL), stdin stays
-    in raw mode and Python's input() misbehaves — Enter and Ctrl+C are read
-    as literal bytes instead of being handled by the terminal driver.
+
+def _ensure_cooked_terminal():
+    """Restore terminal to cooked mode so input() handles Enter/Ctrl+C.
+
+    tty.setraw() disables: ICANON (line buffering), ECHO, ISIG (Ctrl+C→SIGINT),
+    ICRNL (CR→NL mapping for Enter), OPOST (output \n→\r\n).
+    If the previous run left the terminal raw (crash/SIGKILL), Python's input()
+    reads raw bytes — Enter sends \\r (no newline) and Ctrl+C sends \\x03.
     """
+    global _COOKED_TERMIOS
     try:
         import termios
         fd = sys.stdin.fileno()
         attrs = termios.tcgetattr(fd)
-        # Check if ICANON (canonical/cooked mode) is disabled — a sign of raw mode
-        if not (attrs[3] & termios.ICANON):
-            # Restore cooked mode: enable ICANON + ECHO
-            attrs[3] |= termios.ICANON | termios.ECHO
+
+        if _COOKED_TERMIOS is not None:
+            # Restore full saved baseline from before any raw-mode changes
+            termios.tcsetattr(fd, termios.TCSADRAIN, _COOKED_TERMIOS)
+        else:
+            # No saved baseline — manually re-enable critical flags
+            attrs[0] |= termios.ICRNL           # CR→NL (Enter)
+            attrs[1] |= termios.OPOST            # \n→\r\n (output)
+            attrs[3] |= termios.ICANON | termios.ECHO | termios.ISIG  # cooked + Ctrl+C
             termios.tcsetattr(fd, termios.TCSADRAIN, attrs)
     except (termios.error, OSError, ImportError):
-        pass  # Not a TTY or unsupported platform
+        pass
 
 
 def _prompt(prompt_text: str, default: str = "", validator=None) -> str:
