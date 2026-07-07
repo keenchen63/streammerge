@@ -99,7 +99,9 @@ def build_ffmpeg_command(
     if hls_lax_a:
         # Force HLS demuxer + accept non-standard segment URLs
         cmd.extend(["-f", "hls", "-extension_picky", "0"])
-    if proxy_a or stream_a.startswith("https"):
+        cmd.extend(["-multiple_requests", "1"])
+    elif proxy_a and stream_a.startswith("https"):
+        # HLS likely, reuse connections
         cmd.extend(["-multiple_requests", "1"])
     cmd.extend(["-thread_queue_size", str(queue_size)])
     cmd.extend(["-i", stream_a])
@@ -111,7 +113,8 @@ def build_ffmpeg_command(
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
     if hls_lax_b:
         cmd.extend(["-f", "hls", "-extension_picky", "0"])
-    if proxy_b or stream_b.startswith("https"):
+        cmd.extend(["-multiple_requests", "1"])
+    elif proxy_b and stream_b.startswith("https"):
         cmd.extend(["-multiple_requests", "1"])
     cmd.extend(["-thread_queue_size", str(queue_size)])
     cmd.extend(["-i", stream_b])
