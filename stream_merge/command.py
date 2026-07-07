@@ -51,12 +51,17 @@ def build_ffmpeg_command(
         # Input buffering & resilience
         "-reconnect", "1",
         "-reconnect_streamed", "1",
-        "-reconnect_delay_max", "5",
+        "-reconnect_at_eof", "1",
+        "-reconnect_on_http_error", "1",
+        "-reconnect_delay_max", "10",
         "-reinit_filter", "1",
+        # Reuse TLS sessions for HTTPS HLS (avoids re-handshake per segment)
+        "-multiple_requests", "1",
         # Faster probe for HLS live streams (default: 5s → 2s)
         "-analyzeduration", "2000000",
-        # Socket read timeout 10s (detect dead connections faster)
-        "-rw_timeout", "10000000",
+        # Connection timeout 15s
+        "-timeout", "15000000",
+        "-rw_timeout", "15000000",
         # Timestamp correction for streams with broken PTS
         "-fflags", "+genpts+discardcorrupt",
     ]
