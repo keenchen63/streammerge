@@ -61,8 +61,6 @@ def build_ffmpeg_command(
         "-reconnect_on_http_error", "1",
         "-reconnect_delay_max", "10",
         "-reinit_filter", "1",
-        # Reuse TLS sessions for HTTPS HLS (avoids re-handshake per segment)
-        "-multiple_requests", "1",
         # Faster probe for HLS live streams (default: 5s → 2s)
         "-analyzeduration", "2000000",
         # Connection timeout 15s
