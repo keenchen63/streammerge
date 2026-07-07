@@ -16,7 +16,7 @@ DEFAULTS = {
     "video": "a",
     "audio": "a",
     "offset": "0ms",
-    "output_dir": "./output",
+    "output_dir": "/tmp/streammerge",
     "port": 38080,
     "low_latency": "true",
 }
@@ -54,7 +54,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir", default=DEFAULTS["output_dir"],
-        help="Directory for HLS output files (default: ./output)",
+        help="Directory for HLS output files (default: /tmp/streammerge)",
     )
     parser.add_argument(
         "--port", type=int, default=DEFAULTS["port"],

@@ -18,7 +18,7 @@ class TestParseArgs:
         assert args.video == "a"
         assert args.audio == "a"
         assert args.offset == "0ms"
-        assert args.output_dir == "./output"
+        assert args.output_dir == "/tmp/streammerge"
         assert args.port == 38080
         assert args.low_latency == "true"
 
