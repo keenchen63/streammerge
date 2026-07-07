@@ -89,6 +89,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--queue-size", type=int, default=16384,
         help="Input thread queue size in packets (default: 16384, max: 65536)",
     )
+    parser.add_argument(
+        "--dual-audio", action="store_true",
+        help="Keep audio from both streams as separate tracks (player-switchable)",
+    )
     return parser.parse_args(argv)
 
 
@@ -339,6 +343,13 @@ def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
         default=queue_default,
         validator=_validate_queue,
     ))
+    # ── optional: dual audio ───────────────────────────────────
+    dual_default = "true" if args.dual_audio else "false"
+    args.dual_audio = _prompt(
+        "Dual audio (yes = keep both streams audio as separate tracks)",
+        default=dual_default,
+        validator=_validate_choice(["true", "false"]),
+    ) == "true"
 
     print()
     print("─" * 40)
@@ -409,6 +420,7 @@ def main() -> int:
         hls_lax_a=args.hls_lax_a,
         hls_lax_b=args.hls_lax_b,
         queue_size=args.queue_size,
+        dual_audio=args.dual_audio,
     )
 
     server = HLSServer(output_dir=args.output_dir, port=args.port)
@@ -437,6 +449,7 @@ def main() -> int:
     print(f"  Video: {args.video}, Audio: {args.audio}")
     print(f"  Offset: {args.offset} ({offset_ms}ms)")
     print(f"  Output: {args.output_dir}")
+    print(f"  Dual audio: {args.dual_audio}")
     print(f"  Queue size: {args.queue_size}")
     print(f"  HLS lax A: {args.hls_lax_a}, HLS lax B: {args.hls_lax_b}")
     print(f"  Proxy A: {args.proxy_a or 'direct'}")

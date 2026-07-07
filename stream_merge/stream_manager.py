@@ -35,6 +35,7 @@ class StreamManager:
         hls_lax_a: bool = False,
         hls_lax_b: bool = False,
         queue_size: int = 16384,
+        dual_audio: bool = False,
     ):
         self.stream_a = stream_a
         self.stream_b = stream_b
@@ -49,6 +50,7 @@ class StreamManager:
         self.hls_lax_a = hls_lax_a
         self.hls_lax_b = hls_lax_b
         self.queue_size = queue_size
+        self.dual_audio = dual_audio
 
         self._process: subprocess.Popen | None = None
         self._log_file: TextIO | None = None
@@ -170,6 +172,7 @@ class StreamManager:
             hls_lax_a=self.hls_lax_a,
             hls_lax_b=self.hls_lax_b,
             queue_size=self.queue_size,
+            dual_audio=self.dual_audio,
         )
         logger.debug("Launching: %s", " ".join(cmd))
 

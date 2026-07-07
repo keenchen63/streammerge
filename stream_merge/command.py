@@ -18,6 +18,7 @@ def build_ffmpeg_command(
     hls_lax_a: bool = False,
     hls_lax_b: bool = False,
     queue_size: int = 16384,
+    dual_audio: bool = False,
 ) -> list[str]:
     """Build the ffmpeg command as a list of arguments.
 
@@ -109,6 +110,10 @@ def build_ffmpeg_command(
     # ── track mapping ─────────────────────────────────────────
     cmd.extend(["-map", f"{video_input}:v:0"])
     cmd.extend(["-map", f"{audio_input}:a:0"])
+    if dual_audio:
+        # Also include audio from the other input as second track
+        other_input = 1 if audio_input == 0 else 0
+        cmd.extend(["-map", f"{other_input}:a:0"])
 
     # ── encoding ──────────────────────────────────────────────
     if use_copy:
