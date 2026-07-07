@@ -89,12 +89,14 @@ def main() -> int:
     from stream_merge.server import HLSServer
     from stream_merge.monitor import StatusMonitor
 
-    # ── logging setup ───────────────────────────────────────
+    # ── logging setup (writes to file, not stdout) ──────────
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)-7s] %(message)s",
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)-7s] %(name)s: %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S",
-        stream=sys.stdout,
+        handlers=[
+            logging.FileHandler("streammerge.log", encoding="utf-8"),
+        ],
     )
 
     # ── parse & validate ────────────────────────────────────
@@ -103,7 +105,7 @@ def main() -> int:
     errors = validate_args(args)
     if errors:
         for err in errors:
-            logging.error(err)
+            print(err, file=sys.stderr)
         return 1
 
     offset_ms = parse_offset(args.offset)
@@ -129,7 +131,8 @@ def main() -> int:
     shutdown_event = threading.Event()
 
     def _handle_signal(signum, frame):
-        logging.info("Received signal %s, shutting down...", signum)
+        logger.info("Received signal %s, shutting down...", signum)
+        print(f"\nReceived signal {signum}, shutting down...")
         shutdown_event.set()
         controller.shutdown()
 
@@ -137,16 +140,17 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _handle_signal)
 
     # ── launch ──────────────────────────────────────────────
-    logging.info("=" * 50)
-    logging.info("Stream Merge starting")
-    logging.info("  Stream A: %s", args.stream_a)
-    logging.info("  Stream B: %s", args.stream_b)
-    logging.info("  Video: %s, Audio: %s", args.video, args.audio)
-    logging.info("  Offset: %s (%dms)", args.offset, offset_ms)
-    logging.info("  Output: %s", args.output_dir)
-    logging.info("  LL-HLS: %s", args.low_latency)
-    logging.info("  HTTP port: %s", args.port if args.port else "disabled")
-    logging.info("=" * 50)
+    print("=" * 50)
+    print("Stream Merge starting")
+    print(f"  Stream A: {args.stream_a}")
+    print(f"  Stream B: {args.stream_b}")
+    print(f"  Video: {args.video}, Audio: {args.audio}")
+    print(f"  Offset: {args.offset} ({offset_ms}ms)")
+    print(f"  Output: {args.output_dir}")
+    print(f"  LL-HLS: {args.low_latency}")
+    print(f"  HTTP port: {args.port if args.port else 'disabled'}")
+    print("  Log file: streammerge.log")
+    print("=" * 50)
 
     # Ensure clean shutdown on any unhandled exception in the main thread
     try:
@@ -155,13 +159,14 @@ def main() -> int:
         monitor.start()
         controller.run()
     except Exception:
-        logging.exception("Fatal error in main loop")
+        logger.exception("Fatal error in main loop")
+        print("Fatal error — see streammerge.log for details", file=sys.stderr)
     finally:
-        logging.info("Shutting down components...")
+        print("Shutting down...")
         monitor.stop()
         controller.shutdown()
         manager.stop()
         server.stop()
-        logging.info("Stream Merge exited.")
+        print("Stream Merge exited.")
 
     return 0

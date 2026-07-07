@@ -86,17 +86,15 @@ class StreamManager:
         self.restart_count += 1
 
     def update_offset(self, ms: int) -> None:
-        """Update audio offset and restart."""
+        """Update audio offset (without restarting — caller must restart)."""
         self.offset_ms = ms
-        self.restart()
 
     def update_source(self, video: str | None = None, audio: str | None = None) -> None:
-        """Update track source selection and restart."""
+        """Update track source selection (without restarting — caller must restart)."""
         if video is not None:
             self.video = video
         if audio is not None:
             self.audio = audio
-        self.restart()
 
     def is_running(self) -> bool:
         """Return True if the ffmpeg process is currently alive."""

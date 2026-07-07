@@ -18,12 +18,21 @@ OFFSET_COARSE_MS = 500
 
 
 class InteractiveController:
-    """Captures keyboard input and dispatches runtime commands."""
+    """Captures keyboard input and dispatches runtime commands.
+
+    Adjustments are staged (pending) until Enter is pressed, then applied
+    with a single ffmpeg restart. Press 'r' to cancel pending changes.
+    """
 
     def __init__(self, manager: StreamManager):
         self._manager = manager
         self._running = False
         self._original_settings: list | None = None
+
+        # Pending state — accumulated adjustments not yet committed
+        self._pending_offset_delta: int = 0
+        self._pending_video: str | None = None
+        self._pending_audio: str | None = None
 
     def run(self) -> None:
         """Start the interactive keyboard loop. Blocks until shutdown() is called
@@ -31,7 +40,7 @@ class InteractiveController:
         self._running = True
         self._setup_terminal()
 
-        logger.info("Interactive mode active. Press 'h' for help, 'q' to quit.")
+        print("Interactive mode active. Press 'h' for help, 'q' to quit.")
         self._print_help()
 
         try:
@@ -70,8 +79,6 @@ class InteractiveController:
 
     def _handle_escape_sequence(self) -> None:
         """Handle arrow keys and other escape sequences."""
-        # Arrow keys send: \x1b [ A/B/C/D
-        # Shift+arrow sends \x1b [ 1 ; 2 A/B/C/D
         if not select.select([sys.stdin], [], [], 0.05)[0]:
             return
         char2 = sys.stdin.read(1)
@@ -83,9 +90,9 @@ class InteractiveController:
         char3 = sys.stdin.read(1)
 
         if char3 == "A":  # Up arrow
-            return  # Not used
+            return
         elif char3 == "B":  # Down arrow
-            return  # Not used
+            return
         elif char3 == "C":  # Right arrow
             self._adjust_offset(OFFSET_FINE_MS)
         elif char3 == "D":  # Left arrow
@@ -107,12 +114,16 @@ class InteractiveController:
         actions: dict[str, Callable[[], None]] = {
             "\x03": self._do_quit,   # Ctrl-C
             "\x04": self._do_quit,   # Ctrl-D
+            "\r": self._commit,      # Enter
+            "\n": self._commit,      # Enter
             "q": self._do_quit,
             "Q": self._do_quit,
             "v": self._toggle_video,
             "V": self._toggle_video,
             "a": self._toggle_audio,
             "A": self._toggle_audio,
+            "r": self._reset_pending,
+            "R": self._reset_pending,
             "s": self._print_status,
             "S": self._print_status,
             "h": self._print_help,
@@ -127,31 +138,117 @@ class InteractiveController:
         if action:
             action()
 
+    # ── pending state management ────────────────────────────────
+
+    def _has_pending(self) -> bool:
+        """Return True if there are uncommitted changes."""
+        return (self._pending_offset_delta != 0
+                or self._pending_video is not None
+                or self._pending_audio is not None)
+
+    def _commit(self) -> None:
+        """Apply all pending adjustments with a single restart."""
+        if not self._has_pending():
+            print("[no pending changes to commit]")
+            return
+
+        # Collect what changed for the log message
+        changes = []
+
+        if self._pending_offset_delta != 0:
+            old = self._manager.offset_ms
+            new = old + self._pending_offset_delta
+            self._manager.offset_ms = new
+            changes.append(f"offset {format_offset(old)} → {format_offset(new)}")
+            logger.info("Committed offset: %s → %s (Δ %+dms)",
+                        format_offset(old), format_offset(new),
+                        self._pending_offset_delta)
+
+        if self._pending_video is not None:
+            old = self._manager.video
+            self._manager.video = self._pending_video
+            changes.append(f"video {old} → {self._pending_video}")
+            logger.info("Committed video source: %s → %s",
+                        old, self._pending_video)
+
+        if self._pending_audio is not None:
+            old = self._manager.audio
+            self._manager.audio = self._pending_audio
+            changes.append(f"audio {old} → {self._pending_audio}")
+            logger.info("Committed audio source: %s → %s",
+                        old, self._pending_audio)
+
+        print(f">>> COMMITTED: {', '.join(changes)}")
+        self._clear_pending()
+        self._manager.restart()
+
+    def _clear_pending(self) -> None:
+        """Clear all pending state."""
+        self._pending_offset_delta = 0
+        self._pending_video = None
+        self._pending_audio = None
+
+    def _reset_pending(self) -> None:
+        """Cancel all pending adjustments."""
+        if not self._has_pending():
+            print("[no pending changes to cancel]")
+            return
+        print(">>> CANCELLED pending changes")
+        self._clear_pending()
+
+    def _show_pending(self) -> None:
+        """Display current pending adjustments on stdout."""
+        parts = []
+        if self._pending_offset_delta != 0:
+            effective = self._manager.offset_ms + self._pending_offset_delta
+            delta_str = format_offset(self._pending_offset_delta)
+            if self._pending_offset_delta > 0:
+                delta_str = f"+{delta_str}"
+            parts.append(f"offset → {format_offset(effective)} (Δ {delta_str})")
+        if self._pending_video is not None:
+            parts.append(f"video → {self._pending_video}")
+        if self._pending_audio is not None:
+            parts.append(f"audio → {self._pending_audio}")
+
+        if parts:
+            print(f"[PENDING] {', '.join(parts)}  |  Enter=commit  r=cancel")
+
+    # ── adjustments (stage only, no restart) ────────────────────
+
     def _adjust_offset(self, delta_ms: int) -> None:
-        """Adjust the audio offset by a delta and restart ffmpeg."""
-        new_offset = self._manager.offset_ms + delta_ms
-        logger.info("Offset: %s → %s (Δ %+dms)",
-                    format_offset(self._manager.offset_ms),
-                    format_offset(new_offset),
-                    delta_ms)
-        self._manager.update_offset(new_offset)
+        """Accumulate an offset delta (no restart until commit)."""
+        self._pending_offset_delta += delta_ms
+        self._show_pending()
 
     def _toggle_video(self) -> None:
-        """Toggle video source between a and b."""
-        new = "b" if self._manager.video == "a" else "a"
-        logger.info("Video source: %s → %s", self._manager.video, new)
-        self._manager.update_source(video=new)
+        """Toggle pending video source."""
+        current = self._pending_video if self._pending_video is not None else self._manager.video
+        self._pending_video = "b" if current == "a" else "a"
+        self._show_pending()
 
     def _toggle_audio(self) -> None:
-        """Toggle audio source between a and b."""
-        new = "b" if self._manager.audio == "a" else "a"
-        logger.info("Audio source: %s → %s", self._manager.audio, new)
-        self._manager.update_source(audio=new)
+        """Toggle pending audio source."""
+        current = self._pending_audio if self._pending_audio is not None else self._manager.audio
+        self._pending_audio = "b" if current == "a" else "a"
+        self._show_pending()
+
+    # ── display ─────────────────────────────────────────────────
 
     def _print_status(self) -> None:
         """Print current runtime status."""
         uptime_s = (time.monotonic() - self._manager.start_time
                     if self._manager.start_time else 0)
+        pending_info = ""
+        if self._has_pending():
+            pending_info = " [PENDING]"
+        print(
+            f"STATUS | offset={format_offset(self._manager.offset_ms)} "
+            f"| video={self._manager.video} | audio={self._manager.audio} "
+            f"| ffmpeg={'running' if self._manager.is_running() else 'stopped'} "
+            f"| uptime={int(uptime_s)}s | restarts={self._manager.restart_count}"
+            f"{pending_info}"
+        )
+        # Also log to file
         logger.info(
             "STATUS | offset=%s | video=%s | audio=%s | ffmpeg=%s | "
             "uptime=%ds | restarts=%d",
@@ -165,15 +262,18 @@ class InteractiveController:
 
     def _print_help(self) -> None:
         """Print hotkey reference."""
-        logger.info(
-            "HOTKEYS | ← → : offset ±%dms | Shift+←→ : ±%dms | "
-            "[ ] : ±%dms | +/- : ±%dms | "
-            "v: toggle video | a: toggle audio | s: status | q: quit",
-            OFFSET_FINE_MS, OFFSET_COARSE_MS,
-            OFFSET_COARSE_MS, OFFSET_FINE_MS,
+        print(
+            f"HOTKEYS | ← → : offset ±{OFFSET_FINE_MS}ms "
+            f"| Shift+←→ : ±{OFFSET_COARSE_MS}ms "
+            f"| [ ] : ±{OFFSET_COARSE_MS}ms "
+            f"| +/- : ±{OFFSET_FINE_MS}ms"
         )
+        print("          v: toggle video | a: toggle audio | s: status | Enter: commit | r: cancel | q: quit")
 
     def _do_quit(self) -> None:
         """Quit the interactive controller."""
-        logger.info("Shutting down...")
+        if self._has_pending():
+            print(">>> WARNING: You have uncommitted changes. Press Enter to commit or r to cancel, then q to quit.")
+            return
+        print("Shutting down...")
         self.shutdown()
