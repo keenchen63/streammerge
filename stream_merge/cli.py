@@ -85,6 +85,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--hls-lax-b", action="store_true",
         help="Force HLS demuxer for stream B (use if CDN segment URLs lack .ts extension)",
     )
+    parser.add_argument(
+        "--queue-size", type=int, default=16384,
+        help="Input thread queue size in packets (default: 16384, max: 65536)",
+    )
     return parser.parse_args(argv)
 
 
@@ -386,6 +390,7 @@ def main() -> int:
         reencode=args.reencode,
         hls_lax_a=args.hls_lax_a,
         hls_lax_b=args.hls_lax_b,
+        queue_size=args.queue_size,
     )
 
     server = HLSServer(output_dir=args.output_dir, port=args.port)
@@ -414,6 +419,7 @@ def main() -> int:
     print(f"  Video: {args.video}, Audio: {args.audio}")
     print(f"  Offset: {args.offset} ({offset_ms}ms)")
     print(f"  Output: {args.output_dir}")
+    print(f"  Queue size: {args.queue_size}")
     print(f"  HLS lax A: {args.hls_lax_a}, HLS lax B: {args.hls_lax_b}")
     print(f"  Proxy A: {args.proxy_a or 'direct'}")
     print(f"  Proxy B: {args.proxy_b or 'direct'}")

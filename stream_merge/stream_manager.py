@@ -34,6 +34,7 @@ class StreamManager:
         reencode: bool = False,
         hls_lax_a: bool = False,
         hls_lax_b: bool = False,
+        queue_size: int = 16384,
     ):
         self.stream_a = stream_a
         self.stream_b = stream_b
@@ -47,6 +48,7 @@ class StreamManager:
         self.reencode = reencode
         self.hls_lax_a = hls_lax_a
         self.hls_lax_b = hls_lax_b
+        self.queue_size = queue_size
 
         self._process: subprocess.Popen | None = None
         self._log_file: TextIO | None = None
@@ -167,6 +169,7 @@ class StreamManager:
             reencode=self.reencode,
             hls_lax_a=self.hls_lax_a,
             hls_lax_b=self.hls_lax_b,
+            queue_size=self.queue_size,
         )
         logger.debug("Launching: %s", " ".join(cmd))
 

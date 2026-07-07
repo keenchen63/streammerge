@@ -17,6 +17,7 @@ def build_ffmpeg_command(
     reencode: bool = False,
     hls_lax_a: bool = False,
     hls_lax_b: bool = False,
+    queue_size: int = 16384,
 ) -> list[str]:
     """Build the ffmpeg command as a list of arguments.
 
@@ -90,7 +91,7 @@ def build_ffmpeg_command(
         cmd.extend(["-f", "hls", "-extension_picky", "0"])
     if proxy_a or stream_a.startswith("https"):
         cmd.extend(["-multiple_requests", "1"])
-    cmd.extend(["-thread_queue_size", "16384"])
+    cmd.extend(["-thread_queue_size", str(queue_size)])
     cmd.extend(["-i", stream_a])
 
     # ── input B ───────────────────────────────────────────────
@@ -102,7 +103,7 @@ def build_ffmpeg_command(
         cmd.extend(["-f", "hls", "-extension_picky", "0"])
     if proxy_b or stream_b.startswith("https"):
         cmd.extend(["-multiple_requests", "1"])
-    cmd.extend(["-thread_queue_size", "16384"])
+    cmd.extend(["-thread_queue_size", str(queue_size)])
     cmd.extend(["-i", stream_b])
 
     # ── track mapping ─────────────────────────────────────────
