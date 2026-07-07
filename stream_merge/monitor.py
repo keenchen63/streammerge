@@ -89,7 +89,7 @@ class StatusMonitor:
             self._output_dir.glob("*.ts"),
             key=lambda f: f.stat().st_mtime,
         )
-        max_files = 5 * 2  # hls_list_size * 2
+        max_files = 10 * 2  # hls_list_size * 2
         if len(ts_files) <= max_files:
             return
 

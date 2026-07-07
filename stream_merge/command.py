@@ -123,20 +123,24 @@ def build_ffmpeg_command(
         cmd.extend(["-c:a", "aac", "-b:a", "128k"])
 
     # ── HLS output ────────────────────────────────────────────
+    # Note: we do NOT use delete_segments — segments are cleaned up by
+    # the monitor's periodic sweep instead. This keeps old segments
+    # available during network drops so players don't loop/stutter.
     if low_latency:
         cmd.extend([
             "-f", "hls",
             "-hls_time", "1",
-            "-hls_list_size", "5",
+            "-hls_list_size", "10",
             "-hls_flags",
-            "delete_segments+program_date_time+independent_segments",
+            "append_list+program_date_time+independent_segments+omit_endlist",
         ])
     else:
         cmd.extend([
             "-f", "hls",
             "-hls_time", "6",
             "-hls_list_size", "10",
-            "-hls_flags", "delete_segments+program_date_time",
+            "-hls_flags",
+            "append_list+program_date_time+omit_endlist",
         ])
 
     cmd.append(output_path)

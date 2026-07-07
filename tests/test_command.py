@@ -95,15 +95,16 @@ class TestBuildFfmpegCommand:
             output_dir="./output",
             low_latency=True,
         )
-        # Check HLS flags include delete_segments
+        # Check HLS flags include expected options
         flags_idx = None
         for i, arg in enumerate(cmd):
             if arg == "-hls_flags" and i + 1 < len(cmd):
                 flags_idx = i + 1
                 break
         assert flags_idx is not None
-        assert "delete_segments" in cmd[flags_idx]
+        assert "append_list" in cmd[flags_idx]
         assert "independent_segments" in cmd[flags_idx]
+        assert "omit_endlist" in cmd[flags_idx]
 
     def test_reconnect_flags_present(self):
         cmd = build_ffmpeg_command(
