@@ -67,7 +67,8 @@ def build_ffmpeg_command(
         "-timeout", "15000000",
         "-rw_timeout", "15000000",
         # Timestamp correction for streams with broken PTS
-        "-fflags", "+genpts+discardcorrupt",
+        # +nofillin: don't generate filler when packets are missing (wait instead)
+        "-fflags", "+genpts+discardcorrupt+nofillin",
     ]
 
     # ── itsoffset target ──────────────────────────────────────
@@ -127,6 +128,10 @@ def build_ffmpeg_command(
             "-crf", "23",
         ])
         cmd.extend(["-c:a", "aac", "-b:a", "128k"])
+
+    # Large interleave buffer: video can be far ahead of audio without
+    # ffmpeg stalling. Default 10s, set to 60s to absorb proxy latency.
+    cmd.extend(["-max_interleave_delta", "60000000"])
 
     # ── HLS output ────────────────────────────────────────────
     # Note: we do NOT use delete_segments — segments are cleaned up by
