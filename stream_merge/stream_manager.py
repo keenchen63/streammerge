@@ -32,6 +32,8 @@ class StreamManager:
         proxy_a: str = "",
         proxy_b: str = "",
         reencode: bool = False,
+        hls_lax_a: bool = False,
+        hls_lax_b: bool = False,
     ):
         self.stream_a = stream_a
         self.stream_b = stream_b
@@ -43,6 +45,8 @@ class StreamManager:
         self.proxy_a = proxy_a
         self.proxy_b = proxy_b
         self.reencode = reencode
+        self.hls_lax_a = hls_lax_a
+        self.hls_lax_b = hls_lax_b
 
         self._process: subprocess.Popen | None = None
         self._log_file: TextIO | None = None
@@ -161,6 +165,8 @@ class StreamManager:
             proxy_a=self.proxy_a,
             proxy_b=self.proxy_b,
             reencode=self.reencode,
+            hls_lax_a=self.hls_lax_a,
+            hls_lax_b=self.hls_lax_b,
         )
         logger.debug("Launching: %s", " ".join(cmd))
 

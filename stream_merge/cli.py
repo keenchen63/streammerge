@@ -77,6 +77,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--reencode", action="store_true",
         help="Force re-encode even when offset=0 (default: stream copy when possible)",
     )
+    parser.add_argument(
+        "--hls-lax-a", action="store_true",
+        help="Force HLS demuxer for stream A (use if CDN segment URLs lack .ts extension)",
+    )
+    parser.add_argument(
+        "--hls-lax-b", action="store_true",
+        help="Force HLS demuxer for stream B (use if CDN segment URLs lack .ts extension)",
+    )
     return parser.parse_args(argv)
 
 
@@ -296,6 +304,19 @@ def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
         default=reencode_default,
         validator=_validate_choice(["true", "false"]),
     ) == "true"
+    # ── optional: HLS lax mode ──────────────────────────────────
+    hls_lax_a_default = "true" if args.hls_lax_a else "false"
+    args.hls_lax_a = _prompt(
+        "HLS lax mode for Stream A (yes = force HLS demuxer for CDN clean URLs)",
+        default=hls_lax_a_default,
+        validator=_validate_choice(["true", "false"]),
+    ) == "true"
+    hls_lax_b_default = "true" if args.hls_lax_b else "false"
+    args.hls_lax_b = _prompt(
+        "HLS lax mode for Stream B (yes = force HLS demuxer for CDN clean URLs)",
+        default=hls_lax_b_default,
+        validator=_validate_choice(["true", "false"]),
+    ) == "true"
 
     print()
     print("─" * 40)
@@ -363,6 +384,8 @@ def main() -> int:
         proxy_a=args.proxy_a or "",
         proxy_b=args.proxy_b or "",
         reencode=args.reencode,
+        hls_lax_a=args.hls_lax_a,
+        hls_lax_b=args.hls_lax_b,
     )
 
     server = HLSServer(output_dir=args.output_dir, port=args.port)
@@ -391,6 +414,7 @@ def main() -> int:
     print(f"  Video: {args.video}, Audio: {args.audio}")
     print(f"  Offset: {args.offset} ({offset_ms}ms)")
     print(f"  Output: {args.output_dir}")
+    print(f"  HLS lax A: {args.hls_lax_a}, HLS lax B: {args.hls_lax_b}")
     print(f"  Proxy A: {args.proxy_a or 'direct'}")
     print(f"  Proxy B: {args.proxy_b or 'direct'}")
     mode = "REENCODE" if args.reencode else "STREAM COPY"

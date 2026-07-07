@@ -15,6 +15,8 @@ def build_ffmpeg_command(
     proxy_a: str = "",
     proxy_b: str = "",
     reencode: bool = False,
+    hls_lax_a: bool = False,
+    hls_lax_b: bool = False,
 ) -> list[str]:
     """Build the ffmpeg command as a list of arguments.
 
@@ -83,9 +85,12 @@ def build_ffmpeg_command(
         cmd.extend(["-http_proxy", proxy_a])
     if itsoffset_target == "a":
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
+    if hls_lax_a:
+        # Force HLS demuxer + accept non-standard segment URLs
+        cmd.extend(["-f", "hls", "-extension_picky", "0"])
+    if proxy_a or stream_a.startswith("https"):
+        cmd.extend(["-multiple_requests", "1"])
     cmd.extend(["-thread_queue_size", "4096"])
-    # Accept segment URLs without .ts extension (some CDNs use clean URLs)
-    cmd.extend(["-extension_picky", "0"])
     cmd.extend(["-i", stream_a])
 
     # ── input B ───────────────────────────────────────────────
@@ -93,8 +98,11 @@ def build_ffmpeg_command(
         cmd.extend(["-http_proxy", proxy_b])
     if itsoffset_target == "b":
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
+    if hls_lax_b:
+        cmd.extend(["-f", "hls", "-extension_picky", "0"])
+    if proxy_b or stream_b.startswith("https"):
+        cmd.extend(["-multiple_requests", "1"])
     cmd.extend(["-thread_queue_size", "4096"])
-    cmd.extend(["-extension_picky", "0"])
     cmd.extend(["-i", stream_b])
 
     # ── track mapping ─────────────────────────────────────────
