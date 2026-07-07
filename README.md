@@ -61,8 +61,8 @@ Low-latency HLS mode [true]:
 | `--offset` | 字符串 | `0ms` | 音频相对视频的时间偏移 |
 | `--output-dir` | 路径 | `./output` | HLS 输出目录 |
 | `--port` | 整数 | `0` | HTTP 服务端口，`0` 表示禁用 |
-| `--proxy-a` | URL | (空) | Stream A 的 HTTP 代理地址，空则不使用代理 |
-| `--proxy-b` | URL | (空) | Stream B 的 HTTP 代理地址，空则不使用代理 |
+| `--proxy-a` | URL | (空) | Stream A 的代理地址（支持 `http://` 和 `socks5://`），空则直连 |
+| `--proxy-b` | URL | (空) | Stream B 的代理地址（支持 `http://` 和 `socks5://`），空则直连 |
 | `--low-latency` | `true`/`false` | `true` | 启用低延迟 HLS 模式 |
 
 > *`--stream-a` 和 `--stream-b` 为必填项，但可通过 `-i` 交互式输入，无需在命令行指定。
@@ -117,18 +117,25 @@ Low-latency HLS mode [true]:
 
 ### 场景 3：指定代理
 
-Stream A 需要走代理，Stream B 直连（典型的国内外混流场景）：
+Stream A 走代理，Stream B 直连（支持 HTTP 和 SOCKS5）：
 
 ```bash
+# HTTP 代理
 ./streammerge \
   --stream-a "https://overseas-cdn.example.com/live.m3u8" \
   --stream-b "https://domestic.example.com/live.m3u8" \
   --proxy-a "http://proxy:8080" \
-  --video a \
-  --audio b
+  --video a --audio b
+
+# SOCKS5 代理
+./streammerge \
+  --stream-a "https://overseas-cdn.example.com/live.m3u8" \
+  --stream-b "https://domestic.example.com/live.m3u8" \
+  --proxy-a "socks5://127.0.0.1:1080" \
+  --video a --audio b
 ```
 
-代理是**按输入流独立设置**的 —— ffmpeg 会在 `-i` 之前插入 `-http_proxy`，A 走代理 B 不走，互不影响。不需要代理的流留空即可。
+代理是**按输入流独立设置**的 —— ffmpeg 在 `-i` 前插入 `-http_proxy`，A 走代理 B 不走，互不影响。
 
 ### 场景 4：局域网拉流服务
 
