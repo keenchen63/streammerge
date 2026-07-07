@@ -32,6 +32,8 @@ Stream A URL (HLS .m3u8) []: https://live-a.example.com/index.m3u8
 Stream B URL (HLS .m3u8) []: https://live-b.example.com/index.m3u8
 Video source [a]:
 Audio source [a]: b
+HTTP proxy for Stream A (empty = direct) []: http://proxy:8080
+HTTP proxy for Stream B (empty = direct) []:
 Audio offset (e.g. 500ms, -200ms, +1.5s) [0ms]:
 Output directory [./output]:
 HTTP server port (0 = disabled) [0]:
@@ -59,6 +61,8 @@ Low-latency HLS mode [true]:
 | `--offset` | 字符串 | `0ms` | 音频相对视频的时间偏移 |
 | `--output-dir` | 路径 | `./output` | HLS 输出目录 |
 | `--port` | 整数 | `0` | HTTP 服务端口，`0` 表示禁用 |
+| `--proxy-a` | URL | (空) | Stream A 的 HTTP 代理地址，空则不使用代理 |
+| `--proxy-b` | URL | (空) | Stream B 的 HTTP 代理地址，空则不使用代理 |
 | `--low-latency` | `true`/`false` | `true` | 启用低延迟 HLS 模式 |
 
 > *`--stream-a` 和 `--stream-b` 为必填项，但可通过 `-i` 交互式输入，无需在命令行指定。
@@ -111,7 +115,22 @@ Low-latency HLS mode [true]:
   --output-dir ./synced
 ```
 
-### 场景 3：局域网拉流服务
+### 场景 3：指定代理
+
+Stream A 需要走代理，Stream B 直连（典型的国内外混流场景）：
+
+```bash
+./streammerge \
+  --stream-a "https://overseas-cdn.example.com/live.m3u8" \
+  --stream-b "https://domestic.example.com/live.m3u8" \
+  --proxy-a "http://proxy:8080" \
+  --video a \
+  --audio b
+```
+
+代理是**按输入流独立设置**的 —— ffmpeg 会在 `-i` 之前插入 `-http_proxy`，A 走代理 B 不走，互不影响。不需要代理的流留空即可。
+
+### 场景 4：局域网拉流服务
 
 输出合并流并启动 HTTP 服务器，局域网内其他设备可直接拉流：
 
@@ -127,7 +146,7 @@ Low-latency HLS mode [true]:
 
 其他设备访问 `http://<你的IP>:8080/index.m3u8` 即可播放。
 
-### 场景 4：标准延迟模式
+### 场景 5：标准延迟模式
 
 需要更大的缓冲提高稳定性时，关闭低延迟模式：
 
