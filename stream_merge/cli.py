@@ -105,39 +105,29 @@ def validate_args(args: argparse.Namespace) -> list[str]:
     return errors
 
 
-# Saved at import time — the terminal's normal cooked-mode settings.
-# Used by _ensure_cooked_terminal() to recover from raw mode.
-_COOKED_TERMIOS = None
-try:
-    import termios
-    _COOKED_TERMIOS = termios.tcgetattr(sys.stdin.fileno())
-except Exception:
-    pass
-
-
 def _ensure_cooked_terminal():
-    """Restore terminal to cooked mode so input() handles Enter/Ctrl+C.
+    """Re-enable terminal cooked-mode flags unconditionally.
 
     tty.setraw() disables: ICANON (line buffering), ECHO, ISIG (Ctrl+C→SIGINT),
-    ICRNL (CR→NL mapping for Enter), OPOST (output \n→\r\n).
-    If the previous run left the terminal raw (crash/SIGKILL), Python's input()
-    reads raw bytes — Enter sends \\r (no newline) and Ctrl+C sends \\x03.
+    ICRNL (CR→NL mapping for Enter), OPOST (output handling).
+    If the previous run left the terminal raw, Python's input() reads raw bytes
+    — Enter sends \\r (no newline) and Ctrl+C sends \\x03 instead of SIGINT.
+
+    We always force-enable these flags regardless of current state. This is
+    idempotent (enabling already-enabled flags is harmless) and doesn't depend
+    on a saved snapshot (which would capture raw mode on the next run).
     """
-    global _COOKED_TERMIOS
     try:
         import termios
         fd = sys.stdin.fileno()
         attrs = termios.tcgetattr(fd)
-
-        if _COOKED_TERMIOS is not None:
-            # Restore full saved baseline from before any raw-mode changes
-            termios.tcsetattr(fd, termios.TCSADRAIN, _COOKED_TERMIOS)
-        else:
-            # No saved baseline — manually re-enable critical flags
-            attrs[0] |= termios.ICRNL           # CR→NL (Enter)
-            attrs[1] |= termios.OPOST            # \n→\r\n (output)
-            attrs[3] |= termios.ICANON | termios.ECHO | termios.ISIG  # cooked + Ctrl+C
-            termios.tcsetattr(fd, termios.TCSADRAIN, attrs)
+        # iflag[0]: ICRNL — translate CR to NL so Enter works
+        # oflag[1]: OPOST — output processing (\\n → \\r\\n)
+        # lflag[3]: ICANON (line mode), ECHO, ISIG (Ctrl+C → SIGINT)
+        attrs[0] |= termios.ICRNL
+        attrs[1] |= termios.OPOST
+        attrs[3] |= termios.ICANON | termios.ECHO | termios.ISIG
+        termios.tcsetattr(fd, termios.TCSADRAIN, attrs)
     except (termios.error, OSError, ImportError):
         pass
 
