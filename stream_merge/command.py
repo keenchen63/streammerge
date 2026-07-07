@@ -14,6 +14,7 @@ def build_ffmpeg_command(
     low_latency: bool,
     proxy_a: str = "",
     proxy_b: str = "",
+    reencode: bool = False,
 ) -> list[str]:
     """Build the ffmpeg command as a list of arguments.
 
@@ -26,14 +27,19 @@ def build_ffmpeg_command(
                    negative = advance audio via itsoffset on video).
         output_dir: Directory for HLS output files.
         low_latency: Whether to use LL-HLS settings.
-        proxy_a: HTTP proxy for stream A (e.g. http://host:port), empty for none.
-        proxy_b: HTTP proxy for stream B (e.g. http://host:port), empty for none.
+        proxy_a: HTTP proxy for stream A, empty for none.
+        proxy_b: HTTP proxy for stream B, empty for none.
+        reencode: If True, force re-encode even when offset=0.
 
     Returns:
         List of command arguments suitable for subprocess.Popen.
     """
     video_input = 0 if video == "a" else 1
     audio_input = 0 if audio == "a" else 1
+
+    # Stream copy when possible (offset=0, no reencode forced).
+    # This avoids CPU-heavy re-encoding — ffmpeg just remuxes the tracks.
+    use_copy = (offset_ms == 0 and not reencode)
 
     output_path = os.path.join(output_dir, "index.m3u8")
 
@@ -49,9 +55,10 @@ def build_ffmpeg_command(
         "-reinit_filter", "1",
     ]
 
-    # Stream A — with optional per-input proxy
+    # Stream A — with optional per-input proxy and buffer queue
     if proxy_a:
         cmd.extend(["-http_proxy", proxy_a])
+    cmd.extend(["-thread_queue_size", "1024"])
     cmd.extend(["-i", stream_a])
 
     # Insert itsoffset before the second input if offset is negative
@@ -59,9 +66,10 @@ def build_ffmpeg_command(
         itsoffset_sec = abs(offset_ms) / 1000.0
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
 
-    # Stream B — with optional per-input proxy
+    # Stream B — with optional per-input proxy and buffer queue
     if proxy_b:
         cmd.extend(["-http_proxy", proxy_b])
+    cmd.extend(["-thread_queue_size", "1024"])
     cmd.extend(["-i", stream_b])
 
     # Map video track
@@ -69,22 +77,29 @@ def build_ffmpeg_command(
     # Map audio track
     cmd.extend(["-map", f"{audio_input}:a:0"])
 
-    # Audio delay filter for positive offset
-    if offset_ms > 0:
-        # adelay takes delay per channel in ms; "500|500" for stereo
-        cmd.extend(["-af", f"adelay={offset_ms}|{offset_ms}"])
-    elif offset_ms < 0:
-        # When using itsoffset on the video input, audio is effectively
-        # delayed relative to video. We already applied itsoffset above.
-        pass
+    # ── encoding strategy ─────────────────────────────────────
+    if use_copy:
+        # Stream copy: no re-encoding, near-zero CPU.
+        # Works when both sources are H.264+AAC (the typical case).
+        cmd.extend(["-c:v", "copy"])
+        cmd.extend(["-c:a", "copy"])
+    else:
+        # Need filters (offset != 0 or forced reencode) — must re-encode.
+        # Audio delay filter for positive offset
+        if offset_ms > 0:
+            cmd.extend(["-af", f"adelay={offset_ms}|{offset_ms}"])
 
-    # Video codec
-    cmd.extend(["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"])
+        # Video: ultrafast preset + zerolatency tuning for live streaming
+        cmd.extend([
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-tune", "zerolatency",
+            "-crf", "23",
+        ])
+        # Audio: aac at standard bitrate
+        cmd.extend(["-c:a", "aac", "-b:a", "128k"])
 
-    # Audio codec
-    cmd.extend(["-c:a", "aac", "-b:a", "128k"])
-
-    # HLS output settings
+    # ── HLS output settings ───────────────────────────────────
     if low_latency:
         cmd.extend([
             "-f", "hls",

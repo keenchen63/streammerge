@@ -73,6 +73,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--proxy-b", default="",
         help="HTTP proxy for stream B (e.g. http://host:port), empty for direct",
     )
+    parser.add_argument(
+        "--reencode", action="store_true",
+        help="Force re-encode even when offset=0 (default: stream copy when possible)",
+    )
     return parser.parse_args(argv)
 
 
@@ -285,6 +289,13 @@ def interactive_prompt(args: argparse.Namespace) -> argparse.Namespace:
         default=args.low_latency,
         validator=_validate_choice(["true", "false"]),
     )
+    # ── optional: force reencode ───────────────────────────────
+    reencode_default = "true" if args.reencode else "false"
+    args.reencode = _prompt(
+        "Force re-encode (no = stream copy when offset=0, faster)",
+        default=reencode_default,
+        validator=_validate_choice(["true", "false"]),
+    ) == "true"
 
     print()
     print("─" * 40)
@@ -351,6 +362,7 @@ def main() -> int:
         low_latency=args.low_latency == "true",
         proxy_a=args.proxy_a or "",
         proxy_b=args.proxy_b or "",
+        reencode=args.reencode,
     )
 
     server = HLSServer(output_dir=args.output_dir, port=args.port)
@@ -381,6 +393,8 @@ def main() -> int:
     print(f"  Output: {args.output_dir}")
     print(f"  Proxy A: {args.proxy_a or 'direct'}")
     print(f"  Proxy B: {args.proxy_b or 'direct'}")
+    mode = "STREAM COPY" if (offset_ms == 0 and not args.reencode) else "REENCODE"
+    print(f"  Mode: {mode}")
     print(f"  LL-HLS: {args.low_latency}")
     print(f"  HTTP port: {args.port if args.port else 'disabled'}")
     print("  Log file: streammerge.log")

@@ -31,6 +31,7 @@ class StreamManager:
         low_latency: bool = True,
         proxy_a: str = "",
         proxy_b: str = "",
+        reencode: bool = False,
     ):
         self.stream_a = stream_a
         self.stream_b = stream_b
@@ -41,6 +42,7 @@ class StreamManager:
         self.low_latency = low_latency
         self.proxy_a = proxy_a
         self.proxy_b = proxy_b
+        self.reencode = reencode
 
         self._process: subprocess.Popen | None = None
         self._log_file: TextIO | None = None
@@ -158,6 +160,7 @@ class StreamManager:
             low_latency=self.low_latency,
             proxy_a=self.proxy_a,
             proxy_b=self.proxy_b,
+            reencode=self.reencode,
         )
         logger.debug("Launching: %s", " ".join(cmd))
 
