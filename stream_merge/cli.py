@@ -17,7 +17,7 @@ DEFAULTS = {
     "audio": "a",
     "offset": "0ms",
     "output_dir": "./output",
-    "port": 0,
+    "port": 38080,
     "low_latency": "true",
 }
 
@@ -58,7 +58,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--port", type=int, default=DEFAULTS["port"],
-        help="HTTP server port, 0 to disable (default: 0)",
+        help="HTTP server port, 0 to disable (default: 38080)",
     )
     parser.add_argument(
         "--low-latency", type=str, default=DEFAULTS["low_latency"],

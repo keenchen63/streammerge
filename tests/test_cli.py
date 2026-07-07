@@ -19,7 +19,7 @@ class TestParseArgs:
         assert args.audio == "a"
         assert args.offset == "0ms"
         assert args.output_dir == "./output"
-        assert args.port == 0
+        assert args.port == 38080
         assert args.low_latency == "true"
 
     def test_all_args_specified(self):
