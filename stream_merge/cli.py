@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import re
 import sys
 
@@ -376,6 +377,14 @@ def main() -> int:
         server.start()
         manager.start()
         monitor.start()
+
+        # ── success confirmation ───────────────────────────────
+        output_path = os.path.join(args.output_dir, "index.m3u8")
+        print(f"✓ Stream merge active → {output_path}")
+        if args.port:
+            print(f"✓ HTTP server → http://localhost:{args.port}/index.m3u8")
+        print()
+
         controller.run()
     except Exception:
         logger.exception("Fatal error in main loop")
