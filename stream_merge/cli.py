@@ -393,7 +393,7 @@ def main() -> int:
     print(f"  Output: {args.output_dir}")
     print(f"  Proxy A: {args.proxy_a or 'direct'}")
     print(f"  Proxy B: {args.proxy_b or 'direct'}")
-    mode = "STREAM COPY" if (offset_ms == 0 and not args.reencode) else "REENCODE"
+    mode = "REENCODE" if args.reencode else "STREAM COPY"
     print(f"  Mode: {mode}")
     print(f"  LL-HLS: {args.low_latency}")
     print(f"  HTTP port: {args.port if args.port else 'disabled'}")

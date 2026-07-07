@@ -56,7 +56,7 @@ class TestBuildFfmpegCommand:
         assert "1:v:0" in maps
         assert "1:a:0" in maps
 
-    def test_positive_offset_adds_adelay(self):
+    def test_positive_offset_uses_itsoffset_on_audio(self):
         cmd = build_ffmpeg_command(
             stream_a="https://a.example.com/live.m3u8",
             stream_b="https://b.example.com/live.m3u8",
@@ -66,11 +66,11 @@ class TestBuildFfmpegCommand:
             output_dir="./output",
             low_latency=True,
         )
-        # adelay filter should be present
-        adelay_args = [arg for arg in cmd if "adelay" in arg]
-        assert len(adelay_args) > 0
-        # 500ms = "500|500" (stereo delay)
-        assert "500" in adelay_args[0]
+        # offset > 0 → delay audio → -itsoffset before audio input (B = input 1)
+        # -itsoffset should be before the second -i
+        assert "-itsoffset" in cmd
+        # No adelay filter (we use itsoffset instead, allows stream copy)
+        assert not any("adelay" in arg for arg in cmd)
 
     def test_negative_offset_adds_itsoffset(self):
         cmd = build_ffmpeg_command(

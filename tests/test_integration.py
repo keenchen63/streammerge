@@ -56,5 +56,6 @@ class TestEndToEndArgParsing:
         maps = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "-map"]
         assert "1:v:0" in maps  # video from stream B (input 1)
         assert "0:a:0" in maps  # audio from stream A (input 0)
-        # positive offset adds adelay
-        assert any("adelay" in arg for arg in cmd)
+        # positive offset uses -itsoffset on audio input (no adelay needed)
+        assert "-itsoffset" in cmd
+        assert not any("adelay" in arg for arg in cmd)

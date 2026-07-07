@@ -18,18 +18,21 @@ def build_ffmpeg_command(
 ) -> list[str]:
     """Build the ffmpeg command as a list of arguments.
 
+    Offset is implemented via -itsoffset (pure timestamp shift on the input).
+    This does NOT require re-encoding — stream copy works regardless of offset.
+
     Args:
         stream_a: URL of first HLS stream.
         stream_b: URL of second HLS stream.
         video: "a" or "b" — which stream provides the video track.
         audio: "a" or "b" — which stream provides the audio track.
-        offset_ms: Audio offset in milliseconds (positive = delay audio,
-                   negative = advance audio via itsoffset on video).
+        offset_ms: Audio offset: +N = audio behind video (delay audio),
+                   -N = audio ahead of video (delay video).
         output_dir: Directory for HLS output files.
         low_latency: Whether to use LL-HLS settings.
         proxy_a: HTTP proxy for stream A, empty for none.
         proxy_b: HTTP proxy for stream B, empty for none.
-        reencode: If True, force re-encode even when offset=0.
+        reencode: If True, force re-encode instead of stream copy.
 
     Returns:
         List of command arguments suitable for subprocess.Popen.
@@ -37,9 +40,7 @@ def build_ffmpeg_command(
     video_input = 0 if video == "a" else 1
     audio_input = 0 if audio == "a" else 1
 
-    # Stream copy when possible (offset=0, no reencode forced).
-    # This avoids CPU-heavy re-encoding — ffmpeg just remuxes the tracks.
-    use_copy = (offset_ms == 0 and not reencode)
+    use_copy = not reencode
 
     output_path = os.path.join(output_dir, "index.m3u8")
 
@@ -47,59 +48,58 @@ def build_ffmpeg_command(
         "ffmpeg",
         "-hide_banner",
         "-loglevel", "info",
-        # Reconnect settings for input resilience
         "-reconnect", "1",
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "5",
-        # Reinit filter for codec changes (input option, goes before -i)
         "-reinit_filter", "1",
     ]
 
-    # Stream A — with optional per-input proxy and buffer queue
+    # ── itsoffset target ──────────────────────────────────────
+    # -itsoffset delays timestamps of the NEXT -i by N seconds.
+    # offset > 0: audio behind → delay audio timestamp (shift audio input)
+    # offset < 0: audio ahead → delay video timestamp (shift video input)
+    itsoffset_target = None  # "a", "b", or None
+    if offset_ms > 0:
+        itsoffset_target = audio       # delay the audio source
+    elif offset_ms < 0:
+        itsoffset_target = video       # delay the video source
+
+    itsoffset_sec = abs(offset_ms) / 1000.0 if offset_ms != 0 else 0
+
+    # ── input A ───────────────────────────────────────────────
     if proxy_a:
         cmd.extend(["-http_proxy", proxy_a])
+    if itsoffset_target == "a":
+        cmd.extend(["-itsoffset", str(itsoffset_sec)])
     cmd.extend(["-thread_queue_size", "1024"])
     cmd.extend(["-i", stream_a])
 
-    # Insert itsoffset before the second input if offset is negative
-    if offset_ms < 0:
-        itsoffset_sec = abs(offset_ms) / 1000.0
-        cmd.extend(["-itsoffset", str(itsoffset_sec)])
-
-    # Stream B — with optional per-input proxy and buffer queue
+    # ── input B ───────────────────────────────────────────────
     if proxy_b:
         cmd.extend(["-http_proxy", proxy_b])
+    if itsoffset_target == "b":
+        cmd.extend(["-itsoffset", str(itsoffset_sec)])
     cmd.extend(["-thread_queue_size", "1024"])
     cmd.extend(["-i", stream_b])
 
-    # Map video track
+    # ── track mapping ─────────────────────────────────────────
     cmd.extend(["-map", f"{video_input}:v:0"])
-    # Map audio track
     cmd.extend(["-map", f"{audio_input}:a:0"])
 
-    # ── encoding strategy ─────────────────────────────────────
+    # ── encoding ──────────────────────────────────────────────
     if use_copy:
-        # Stream copy: no re-encoding, near-zero CPU.
-        # Works when both sources are H.264+AAC (the typical case).
         cmd.extend(["-c:v", "copy"])
         cmd.extend(["-c:a", "copy"])
     else:
-        # Need filters (offset != 0 or forced reencode) — must re-encode.
-        # Audio delay filter for positive offset
-        if offset_ms > 0:
-            cmd.extend(["-af", f"adelay={offset_ms}|{offset_ms}"])
-
-        # Video: ultrafast preset + zerolatency tuning for live streaming
         cmd.extend([
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-tune", "zerolatency",
             "-crf", "23",
         ])
-        # Audio: aac at standard bitrate
         cmd.extend(["-c:a", "aac", "-b:a", "128k"])
 
-    # ── HLS output settings ───────────────────────────────────
+    # ── HLS output ────────────────────────────────────────────
     if low_latency:
         cmd.extend([
             "-f", "hls",
