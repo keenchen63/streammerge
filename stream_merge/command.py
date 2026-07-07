@@ -84,8 +84,8 @@ def build_ffmpeg_command(
     if itsoffset_target == "a":
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
     cmd.extend(["-thread_queue_size", "4096"])
-    # Accept any segment URL extension (some CDNs use clean URLs without .ts)
-    cmd.extend(["-allowed_extensions", "ALL"])
+    # Accept segment URLs without .ts extension (some CDNs use clean URLs)
+    cmd.extend(["-extension_picky", "0"])
     cmd.extend(["-i", stream_a])
 
     # ── input B ───────────────────────────────────────────────
@@ -94,7 +94,7 @@ def build_ffmpeg_command(
     if itsoffset_target == "b":
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
     cmd.extend(["-thread_queue_size", "4096"])
-    cmd.extend(["-allowed_extensions", "ALL"])
+    cmd.extend(["-extension_picky", "0"])
     cmd.extend(["-i", stream_b])
 
     # ── track mapping ─────────────────────────────────────────
