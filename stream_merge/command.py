@@ -48,10 +48,17 @@ def build_ffmpeg_command(
         "ffmpeg",
         "-hide_banner",
         "-loglevel", "info",
+        # Input buffering & resilience
         "-reconnect", "1",
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "5",
         "-reinit_filter", "1",
+        # Faster probe for HLS live streams (default: 5s → 2s)
+        "-analyzeduration", "2000000",
+        # Socket read timeout 10s (detect dead connections faster)
+        "-rw_timeout", "10000000",
+        # Timestamp correction for streams with broken PTS
+        "-fflags", "+genpts+discardcorrupt",
     ]
 
     # ── itsoffset target ──────────────────────────────────────
@@ -71,7 +78,7 @@ def build_ffmpeg_command(
         cmd.extend(["-http_proxy", proxy_a])
     if itsoffset_target == "a":
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
-    cmd.extend(["-thread_queue_size", "1024"])
+    cmd.extend(["-thread_queue_size", "4096"])
     cmd.extend(["-i", stream_a])
 
     # ── input B ───────────────────────────────────────────────
@@ -79,7 +86,7 @@ def build_ffmpeg_command(
         cmd.extend(["-http_proxy", proxy_b])
     if itsoffset_target == "b":
         cmd.extend(["-itsoffset", str(itsoffset_sec)])
-    cmd.extend(["-thread_queue_size", "1024"])
+    cmd.extend(["-thread_queue_size", "4096"])
     cmd.extend(["-i", stream_b])
 
     # ── track mapping ─────────────────────────────────────────
